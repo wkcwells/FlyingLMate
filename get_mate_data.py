@@ -1,9 +1,10 @@
-#!/opt/local/bin/python
+#!/usr/bin/python
 
 import telnetlib
 import csv
 import datetime
 import h5py
+from dateutil import tz
 
 state_decoder = {
     0: 'Silent',
@@ -28,7 +29,20 @@ mate_reader = csv.reader([mate_output])
 mate_list_of_lists = list(mate_reader)
 mate_array = mate_list_of_lists[0]
 
-time_string = '{0:%Y-%m-%d\t%H:%M:%S}'.format(datetime.datetime.now())
+# Auto-detect zones:
+from_zone = tz.tzutc()
+to_zone = tz.gettz('US/Pacific') # Daylight saving?
+
+utc = datetime.datetime.utcnow()
+
+# Tell the datetime object that it's in UTC time zone since
+# datetime objects are 'naive' by default
+utc = utc.replace(tzinfo=from_zone)
+
+# Convert time zone
+local = utc.astimezone(to_zone)
+
+time_string = '{0:%Y-%m-%d\t%H:%M:%S\t%Z}'.format(local)
 
 pv_volts = int(mate_array[4])
 pv_amps = int(mate_array[3])
@@ -37,12 +51,13 @@ bat_amps = int(mate_array[2])
 kwh = int(mate_array[5])
 state = int(mate_array[9])
 
-translated = '%s:\tSolar:\t%d,\t%d;\tBattery\t%f,\t%d;\tKWH:\t%d\tState:\t%s\n' % \
+translated = '%s\tSolar:\t%d\t%d\tBattery:\t%s\t%d\tKWH:\t%d\tState:\t%s\n' % \
              (time_string, pv_volts, pv_amps,
-              bat_volts, bat_amps, kwh, state_decoder.get(state))
+              format(bat_volts, '.1f'), bat_amps, kwh, state_decoder.get(state))
 
 print(translated)
 
+# Note: the script must be run from the directory where this file is located
 with open('mate_data.tsv', 'a') as file:
     file.write(translated)
 

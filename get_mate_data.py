@@ -5,6 +5,8 @@ import csv
 import datetime
 import h5py
 from dateutil import tz
+import numpy as np
+import time
 
 state_decoder = {
     0: 'Silent',
@@ -41,19 +43,18 @@ utc = utc.replace(tzinfo=from_zone)
 
 # Convert time zone
 local = utc.astimezone(to_zone)
-
 time_string = '{0:%Y-%m-%d\t%H:%M:%S\t%Z}'.format(local)
 
 pv_volts = int(mate_array[4])
 pv_amps = int(mate_array[3])
 bat_volts = int(mate_array[10])/10.
 bat_amps = int(mate_array[2])
-kwh = int(mate_array[5])
+kwh = int(mate_array[5])/10.
 state = int(mate_array[9])
 
-translated = '%s\tSolar:\t%d\t%d\tBattery:\t%s\t%d\tKWH:\t%d\tState:\t%s\n' % \
+translated = '%s\tSolar:\t%d\t%d\tBattery:\t%s\t%d\tKWH:\t%s\tState:\t%s\n' % \
              (time_string, pv_volts, pv_amps,
-              format(bat_volts, '.1f'), bat_amps, kwh, state_decoder.get(state))
+              format(bat_volts, '.1f'), bat_amps, format(kwh, '.1f'), state_decoder.get(state))
 
 print(translated)
 
@@ -61,19 +62,23 @@ print(translated)
 with open('mate_data.tsv', 'a') as file:
     file.write(translated)
 
-'''
-with h5py.File('mate_data.h5, 'w') as f:
-            if first:
-                coord = f.create_dataset('coord', maxshape=(2, None, 3), data=[tracks.hit_pos.T, tracks.means.T],
-                                         chunks=True)
-                uncert = f.create_dataset('sigma', maxshape=(None,), data=tracks.sigmas, chunks=True)
-                arr.append(tracks.sigmas.shape[0])
-                f.create_dataset('r_lens', data=tracks.lens_rad)
-            else:
-                coord.resize(coord.shape[1] + tracks.means.shape[1], axis=1)
-                coord[:, -tracks.means.shape[1]:, :] = [tracks.hit_pos.T, tracks.means.T]
-                uncert.resize(uncert.shape[0] + tracks.sigmas.shape[0], axis=0)
-                uncert[-tracks.sigmas.shape[0]:] = tracks.sigmas
-                arr.append(uncert.shape[0])
-        first = False
-'''
+# Append data to an hdf5 table.  Will create the table if necessary.
+# There must be a better way to do this!!
+def append_data_to_table(h5file, table_name, data, data_type):
+    if not table_name in h5file:
+        h5file.create_dataset(table_name, data=[data], dtype=data_type, maxshape=(None,))
+    else:
+        table = h5file[table_name]
+        cur_size = len(table)
+        #print('cur_size: %i, shape: %s' % (cur_size, str(np.shape(pvv_table))))
+        table.resize(cur_size + 1, axis=0)
+        table[cur_size] = data
+
+with h5py.File('mate_data.h5', 'a') as h5f:     # Mode 'a' is the default
+    append_data_to_table(h5f, 'timestamp', time.time(), 'float')   # Python 3 has much better support for timestamps - this is currently not converted to anything...
+    append_data_to_table(h5f, 'pv_volts', pv_volts, 'int16')
+    append_data_to_table(h5f, 'pv_amps', pv_amps, 'int16')
+    append_data_to_table(h5f, 'batt_volts', bat_volts, 'float')
+    append_data_to_table(h5f, 'batt_amps', bat_amps, 'int16')
+    append_data_to_table(h5f, 'kwh', kwh, 'float')
+    append_data_to_table(h5f, 'state', state, 'int16')

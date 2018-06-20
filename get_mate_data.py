@@ -5,8 +5,8 @@ import csv
 import datetime
 import h5py
 from dateutil import tz
-import numpy as np
 import time
+import matplotlib.pyplot as plt
 
 state_decoder = {
     0: 'Silent',
@@ -82,3 +82,26 @@ with h5py.File('mate_data.h5', 'a') as h5f:     # Mode 'a' is the default
     append_data_to_table(h5f, 'batt_amps', bat_amps, 'int16')
     append_data_to_table(h5f, 'kwh', kwh, 'float')
     append_data_to_table(h5f, 'state', state, 'int16')
+
+    # TODO
+    #   Display the proper time scale
+    #   Scale the drawing right
+
+    # For 2-axis plots see: https://matplotlib.org/2.0.1/examples/api/two_scales.html
+    '''
+    volts = h5f['pv_volts']
+    time = h5f['timestamp']
+    plt.plot(time, volts, label="PV volts")
+    '''
+    # To move legend outside of plot area (partially): https://stackoverflow.com/questions/4700614/how-to-put-the-legend-out-of-matplotlib-plot
+    plt.plot('timestamp', 'batt_volts', data=h5f, label="Batt volts")
+    plt.legend(loc=2)
+    plt.grid()
+    plt.twinx()
+    plt.plot('timestamp', 'batt_amps', data=h5f, label="Batt amps", color='red')
+    plt.plot('timestamp', 'kwh', data=h5f, label="KWH", color='orange')
+    plt.plot('timestamp', 'state', data=h5f, label="State", color='green')
+    plt.legend(loc=1)
+    #plt.show()
+    plt.savefig('mate.png', bbox_inches='tight')        # Use PDF for vectorized
+    plt.savefig('mate.pdf', bbox_inches='tight')        # Use PDF for vectorized

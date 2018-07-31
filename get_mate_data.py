@@ -6,6 +6,10 @@ import datetime
 import h5py
 from dateutil import tz
 import time
+
+# See: https://stackoverflow.com/questions/2801882/generating-a-png-with-matplotlib-when-display-is-undefined
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 
@@ -96,7 +100,7 @@ with h5py.File('mate_data.h5', 'a') as h5f:     # Mode 'a' is the default
         times.append(datetime.datetime.fromtimestamp(time))
 
     figure, ax = plt.subplots()
-    figure.set_size_inches(8, 4)
+    figure.set_size_inches(12, 6)
     ax.plot(times, 'batt_volts', data=h5f, label="Batt volts")
     plt.legend(loc=2)
     plt.grid()

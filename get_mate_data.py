@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 import telnetlib
 import csv
@@ -6,10 +6,12 @@ import datetime
 import h5py
 from dateutil import tz
 import time
+import pytz
+import sys
 
 # See: https://stackoverflow.com/questions/2801882/generating-a-png-with-matplotlib-when-display-is-undefined
 import matplotlib
-#matplotlib.use('Agg')
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 
@@ -61,19 +63,30 @@ def plot(h5file, times, slice_to_plot=None):
 
 
 if __name__=='__main__':
+    now_string = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S") # Only used for print debugging
+    print('%s: get_mate running' % now_string)
+    try:
+        with telnetlib.Telnet("12.97.65.162",10002) as tn:
+            blank = tn.read_until(b'\n', 2)  # "2" is temporary for debugging
+            mate_output = tn.read_until(b'\n', 2)   # Read one line of old data that may be stuck in the Lantronix
+            print('Throwaway line: %s' % mate_output)
+            mate_output = tn.read_until(b'\n', 2)
+            timeout_count = 0
+            while len(mate_output) != 49 and timeout_count < 5:
+                print('Bad mate data: %d: %s' % (len(mate_output), mate_output))
+                mate_output = tn.read_until(b'\n', 2)
+                timeout_count += 1
+    except ConnectionRefusedError as e:
+        print('%s: Telnet connection refused or otherwise failed: %s' % (now_string, str(e)))
+        sys.exit(-1)
 
-    tn = telnetlib.Telnet("12.97.65.162",10002)
-    blank = tn.read_until("\n")
-    mate_output = tn.read_until("\n")   # Read one line of old data that may be stuck in the Lantronix
-    print('Throwaway line: %s' % mate_output)
-    mate_output = tn.read_until("\n")
-    while len(mate_output) != 49:
-        print('Bad mate data: %d: %s' % (len(mate_output), mate_output))
-        mate_output = tn.read_until("\n")
-    tn.close()
-    print(mate_output)
+    if len(mate_output) != 49:
+        print('Bad or no mate data.  Exiting.')
+        sys.exit(-1)
 
-    mate_reader = csv.reader([mate_output])
+    print('Mate output: %s' % mate_output)
+
+    mate_reader = csv.reader([mate_output.decode('utf-8')])
     mate_list_of_lists = list(mate_reader)
     mate_array = mate_list_of_lists[0]
 
@@ -127,8 +140,10 @@ if __name__=='__main__':
         # To move legend outside of plot area (partially): https://stackoverflow.com/questions/4700614/how-to-put-the-legend-out-of-matplotlib-plot
 
         _times = []
+        flyingl_tz = pytz.timezone('US/Pacific')
         for time in _h5f['timestamp']:
-            _times.append(datetime.datetime.fromtimestamp(time))
+            utc_time = pytz.utc.localize(datetime.datetime.utcfromtimestamp(time))
+            _times.append(utc_time.astimezone(flyingl_tz))
 
         the_plot = plot(_h5f, _times, slice_to_plot=slice(-(12 * 24 * 14),0-1))    # Will -1 give the last data point??  Don't think so
         the_plot.savefig('mate.png', bbox_inches='tight')        # Use PDF for vectorized
